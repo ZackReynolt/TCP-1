@@ -1,0 +1,136 @@
+unix-Systemfunktionen fuer Anwendungen mit TCP/IP (IPv4)
+
+1. benoetigte .h-Files:
+     sys/types.h
+     sys/socket.h
+     netinet/in.h
+     arpa/inet.h
+   Link-Bibliotheken:
+     -lnsl -lsocket
+
+2. Socket-Erzeugung fuer Client und Server
+
+     int s, s2;	Socket-Deskriptor-Variablen
+     s = socket (Adressfamilie, Sockettyp, Protokoll);
+     Adressfamilie = AF_INET
+     Sockettyp     = SOCK_STREAM
+     Protokoll     = 0  (Standardprotokoll - TCP)
+
+3. Systemfunktionen zur TCP-Server-Initialisierung
+
+     Adressstruktur anlegen
+       struct sockaddr_in server;
+       server.sin_family = AF_INET;
+       server.sin_port   = Portadresse;
+       server.sin_addr.s_addr = INADDR_ANY;
+
+     Adressstruktur mit Socket verbinden
+       int rc;
+       rc = bind (s,(struct sockaddr*)&server, sizeof(server));
+
+     Warteschlange fuer Socket einrichten
+       rc = listen ( s, 5 );
+         rc < 0  Fehler; 
+         rc = 0  kein Fehler; 
+
+     Warteschlange auf Verbindungsanforderung abfragen (warten, 
+     falls keine vorhanden)
+       s2 = accept ( s, 0, 0 );
+       Es wird ein zweiter Socketdeskriptor s2 erzeugt, der im 
+       weiteren fuer die Datenuebertragung zu benutzen ist!
+
+     Optional: 
+     Adressinformationen des anfordernden Clients ermitteln
+       Adressstruktur fuer Adressinformationen des Clients
+       struct sockaddr_in client;
+       int clen = sizeof(client);
+       s2 = accept ( s,(struct sockaddr*)&client, &clen);
+         oder
+       getpeername ( s,(struct sockaddr*)&client, &clen);
+
+       client.sin_addr.s_addr und client.sin_port enthalten 
+       danach die entsprechenden Adressen in numerischer Form.
+
+4. Systemfunktionen zur TCP-Client-Initialisierug
+
+     Adressstruktur anlegen
+       struct sockaddr_in server;
+       char serveradresse[16];
+       server.sin_family = AF_INET;
+       server.sin_port   = Portadresse auf dem Server;
+       server.sin_addr.s_addr = inet_addr (serveradresse);
+       Serveradresse als Zeichenkette in Punktnotation
+
+     Anfordern einer Verbindung
+       rc = connect(s,(struct sockaddr*)&server,sizeof(server));
+
+5. Datenuebertragung
+
+       int l, flag=0;
+       char buff[BUFFLEN];
+
+     Senden
+       l = write ( s, buff, Datenlaenge);
+         l>0 Anzahl der tatsaechlich gesendeten Bytes bzw.
+         l<0 bei Fehler
+       oder
+       l = send ( s, buff, Datenlaenge, flag);
+
+     Empfang
+       l = read ( s, buff, Empfangslaenge);
+         l >  0 Anzahl der tatsaechlich empfangenen Bytes 
+         l <  0 bei Fehler
+         l == 0 auf der Gegenseite wurde die Verbindung beendet
+     oder
+       l = recv (s, buff, Empfangslaenge, flag);
+
+6. Verbindung beenden
+
+     close ( s );
+
+7. Konvertierung der IP-Adressdarstellungen
+
+     a) Punktnotation -> numerisches Adressformat 
+        char punktadr[16];
+        unsigned long numadr;
+        numadr = inet_addr (punktadr);
+                inet_addr() erzeugt eine numerische Adresse 
+                vom Typ  unsigned long
+
+     b) numerisches Adressformat -> Punktnotation
+        char punktadr[16];
+        struct sockaddr_in client;
+        int clen = sizeof(client);
+        getpeername (s,(struct sockaddr*)&client, &clen);
+        strcpy (punktadr, inet_ntoa (client.sin_addr) );
+                inet_ntoa() benoetigt ein Argument 
+                vom Typ  struct in_addr
+
+8. Byte-Ordnungsoperationen
+
+   Die Uebertragung von Adressen (32-Bit-IP-Adressen, 16-Bit-Port-
+   Adressen) erfolgt in numerischer Form netzweit einheitlich in 
+   Big-Endian-Anordnung. Die Eintragung der Adressen in die Adress-
+   struktur muss in diesem Format erfolgen.
+   Fuer die Verarbeitung der Adressen (numerische bzw. Vergleichs-
+   operationen) muessen diese aber in der hostspezifischen Form 
+   gespeichert sein. 
+   Konvertierungs-Funktionen bzw. Makros, die fuer portable 
+   Anwendungen verwendet werden sollten:
+     htonl  host-to-net-long  (von Host- zu Netz- Anordnung)
+     ntohl  net-to-host-long
+     htons  host-to-net-short
+     ntohs  net-to-host-short
+
+   Bsp.1: Eintragung in die Adressstruktur
+     int portadresse;
+     char serveradresse[16];
+     server.sin_port = htons(portadresse);
+     server.sin_addr.s_addr = inet_addr(serveradresse);
+            inet_addr() liefert die Adresse in Netzanordnung.
+
+   Bsp.2: fuer Vergleiche u.a. ist die Hostanordnung erforderlich
+     char punktadr[16];
+     unsigned long numadr;
+     numadr = ntohl(client.sin_addr.s_addr);
+
